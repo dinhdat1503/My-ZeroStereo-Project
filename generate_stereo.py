@@ -50,7 +50,7 @@ def main(cfg):
         right_file = convert_filepath(left_file[0], 'right', 'png')
         mask_nocc_file = convert_filepath(left_file[0], 'mask_nocc', 'png')
         mask_inpaint_file = convert_filepath(left_file[0], 'mask_inpaint', 'png')
-
+###
         while True:
             try:
                 image_pred, mask_nocc, mask_inpaint = inference(cfg, accelerator, model, warped_image, mask_nocc, mask_inpaint, scale, h, w)

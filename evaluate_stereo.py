@@ -45,7 +45,7 @@ def main(cfg):
             epe = torch.abs(disp_pred - disp_gt)
             out = (epe > cfg.dataset[name].outlier).float()
             epe, out = accelerator.gather_for_metrics((epe[valid >= 0.5].mean(), out[valid >= 0.5].mean()))
-
+##
             total_elem += epe.shape[0]
             total_epe += epe.sum().item()
             total_out += out.sum().item()

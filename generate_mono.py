@@ -14,7 +14,7 @@ from model import fetch_model
 from dataset import fetch_dataloader
 from util.util import convert_filepath, generate_disparity
 from util.padder import InputPadder
-
+###
 def inference(model, image, scale, mean, std):
     h, w = image.shape[-2:]
     if scale > 1:
