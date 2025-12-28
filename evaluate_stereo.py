@@ -1,57 +1,75 @@
-import hydra
-import torch
-from tqdm import tqdm
-from hydra.utils import instantiate
-from accelerate import load_checkpoint_and_dispatch
-from accelerate.logging import get_logger
-from model import fetch_model
-from dataset import fetch_dataloader
-from util.padder import InputPadder
+import os
+import glob
+import sys
+from pyspark.sql import SparkSession
 
-@hydra.main(version_base=None, config_path='config', config_name='evaluate_stereo')
-def main(cfg):
-    logger = get_logger(__name__)
-    accelerator = instantiate(cfg.accelerator)
+# --- CẤU HÌNH CHO KAGGLE ---
+# Lưu ý: Bạn cần thay đúng tên dataset của bạn ở dòng dưới
+INPUT_DIR = "/kaggle/input/bdd100k-dataset/bdd100k/images/100k/train" 
+OUTPUT_DIR = "/kaggle/working/spark_output"
+
+# Hàm Map (Xử lý từng phần tử)
+def process_partition(iterator):
+    import torch # Import bên trong hàm để tránh lỗi Spark
+    results = []
     
-    dataloader = fetch_dataloader(cfg, cfg.dataset, cfg.dataloader, logger)
-    model = fetch_model(cfg, logger)
-    model = load_checkpoint_and_dispatch(model, cfg.checkpoint)
-    logger.info(f'Loading checkpoint from {cfg.checkpoint}.')
-
-    model = accelerator.prepare_model(model)
-    for name in dataloader:
-        dataloader[name] = accelerator.prepare_data_loader(dataloader[name])
-
-    for name in dataloader:
-        model.eval()
-        total_elem, total_epe, total_out = 0, 0, 0
-        for data in tqdm(dataloader[name], dynamic_ncols=True, disable=not accelerator.is_main_process):
-            left, right, disp_gt, valid = [x for x in data]
-            padder = InputPadder(left.shape, divis_by=32)
-            left, right = padder.pad(left, right)
-
-            with torch.no_grad():
-                if cfg.model.name == 'RAFTStereo':
-                    _, disp_pred = model(left, right, iters=cfg.model.valid_iters, test_mode=True)
-                    disp_pred = -disp_pred
-                elif cfg.model.name == 'IGEVStereo':
-                    disp_pred = model(left, right, iters=cfg.model.valid_iters, test_mode=True)
-                else:
-                    raise Exception(f'Invalid model name: {cfg.model.name}.')
+    # Giả lập check GPU trên Worker
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    
+    for image_path in iterator:
+        filename = os.path.basename(image_path)
+        try:
+            # --- CHỖ NÀY GỌI MODEL CỦA BẠN ---
+            # Ví dụ: model.predict(image_path)
+            # Ở đây mình chỉ giả lập tạo file kết quả rỗng
+            
+            # Ghi file kết quả (Demo)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            with open(f"{OUTPUT_DIR}/{filename}.txt", "w") as f:
+                f.write(f"Processed on {device}")
                 
-            disp_pred = padder.unpad(disp_pred)
-            assert disp_pred.shape == disp_gt.shape
+            status = "SUCCESS"
+        except Exception as e:
+            status = "FAILED"
+        
+        yield (filename, status)
 
-            epe = torch.abs(disp_pred - disp_gt)
-            out = (epe > cfg.dataset[name].outlier).float()
-            epe, out = accelerator.gather_for_metrics((epe[valid >= 0.5].mean(), out[valid >= 0.5].mean()))
-##
-            total_elem += epe.shape[0]
-            total_epe += epe.sum().item()
-            total_out += out.sum().item()
-        accelerator.print(f'{name}/EPE: {total_epe / total_elem:.2f}, {name}/Bad {cfg.dataset[name].outlier}px: {100 * total_out / total_elem:.2f}')
+if __name__ == "__main__":
+    # Khởi tạo Spark (Chế độ local[2] cho Kaggle T4 x2)
+    spark = SparkSession.builder \
+        .appName("ZeroStereo_MapReduce") \
+        .config("spark.driver.memory", "14g") \
+        .master("local[2]") \
+        .getOrCreate()
 
-    accelerator.end_training()
+    print(f"🚀 [Spark] Đang quét ảnh từ: {INPUT_DIR}")
+    
+    # Kiểm tra folder đầu vào
+    if not os.path.exists(INPUT_DIR):
+        print(f"❌ LỖI: Không tìm thấy đường dẫn {INPUT_DIR}")
+        print("👉 Hãy kiểm tra lại tên Dataset trong phần 'Add Input' trên Kaggle!")
+        sys.exit(1)
 
-if __name__ == '__main__':
-    main()
+    all_files = glob.glob(os.path.join(INPUT_DIR, "*.jpg"))
+    print(f"📊 Tổng số ảnh tìm thấy: {len(all_files)}")
+
+    # CHẠY TEST 100 ẢNH
+    if len(all_files) > 0:
+        files_rdd = spark.sparkContext.parallelize(all_files[:100], numSlices=2)
+        
+        print("⏳ Đang chạy MapReduce...")
+        # Map: Xử lý
+        mapped_rdd = files_rdd.mapPartitions(process_partition)
+        
+        # Reduce: Tổng hợp
+        summary = mapped_rdd.map(lambda x: (x[1], 1)) \
+                            .reduceByKey(lambda a, b: a + b) \
+                            .collect()
+
+        print("-" * 40)
+        print("✅ KẾT QUẢ THỐNG KÊ (REDUCE):")
+        for status, count in summary:
+            print(f"   - {status}: {count}")
+        print("-" * 40)
+    
+    spark.stop()

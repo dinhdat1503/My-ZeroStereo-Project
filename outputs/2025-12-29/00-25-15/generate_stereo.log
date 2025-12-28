@@ -1,0 +1,7 @@
+[2025-12-29 00:25:16,262][__main__][INFO] - Reading 35000 samples from MfS35K.
+[2025-12-29 00:25:20,919][xformers][WARNING] - WARNING[XFORMERS]: xFormers can't load C++/CUDA extensions. xFormers was built for:
+    PyTorch 2.9.1+cu128 with CUDA 1208 (you have 2.9.1+cpu)
+    Python  3.10.11 (you have 3.12.12)
+  Please reinstall xformers (see https://github.com/facebookresearch/xformers#installing-xformers)
+  Memory-efficient attention, SwiGLU, sparse and more won't be available.
+  Set XFORMERS_MORE_DETAILS=1 for more details

@@ -1,0 +1,30 @@
+model:
+  name: StereoGen
+  instance:
+    _target_: model.stereogen.StereoGen.from_pretrained
+    pretrained_model_name_or_path: checkpoint/stereogen
+gpus: ${oc.env:CUDA_VISIBLE_DEVICES, '0,1,2,3'}
+seed: 666
+num_inference_step: 50
+accelerator:
+  _target_: accelerate.Accelerator
+  mixed_precision: fp16
+  dataloader_config:
+    _target_: accelerate.DataLoaderConfiguration
+    split_batches: true
+dataset:
+  MfS35K:
+    instance:
+      _target_: dataset.warp_dataset.MfS35K
+      root: /data/datasets/mfs35k
+      filelist: filelist/mfs35k.txt
+dataloader:
+  split: false
+  batch_size_per_gpu: 1
+  total_batch_size: null
+  param:
+    batch_size: null
+    num_workers: null
+    pin_memory: true
+    shuffle: false
+    drop_last: false
