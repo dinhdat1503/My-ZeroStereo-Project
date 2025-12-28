@@ -1,0 +1,4 @@
+- model=igev_stereo
+- checkpoint=checkpoints/igev_stereo/model_700.safetensors
+- left_list=assets/demo.jpg
+- right_list=assets/demo.jpg

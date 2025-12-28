@@ -35,7 +35,7 @@ def main(cfg):
         right = torch.from_numpy(right).permute(2, 0, 1)[None].cuda()
 
         padder = InputPadder(left.shape, divis_by=32)
-        left_right = padder.pad(left, right)
+        left, right = padder.pad(left, right)
 
         with torch.no_grad():
             if cfg.model.name == 'RAFTStereo':
@@ -49,7 +49,8 @@ def main(cfg):
         disp_pred = padder.unpad(disp_pred)
 
         os.makedirs(cfg.disp_dir, exist_ok=True)
-        plt.imsave(f'{cfg.disp_dir}/{left_file.split('/')[cfg.base_index].split('.')[0]}.png', disp_pred.squeeze().cpu().numpy(), cmap='magma')
+        file_name = os.path.basename(left_file).split('.')[0]
+        plt.imsave(f'{cfg.disp_dir}/{file_name}.png', disp_pred.squeeze().cpu().numpy(), cmap='magma')
 
     accelerator.end_training()
 

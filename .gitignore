@@ -1,5 +1,19 @@
-__pycache__
-checkpoint
-outputs
-wandb
-result
+# Bỏ qua dữ liệu nặng
+datasets/
+raw_data/
+*.zip
+*.tar.gz
+
+# Bỏ qua Model nặng
+checkpoints/
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# Bỏ qua file rác hệ thống
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.vscode/
+.idea/

@@ -1,0 +1,5 @@
+- model=igev_stereo
+- checkpoint=checkpoints/igev_stereo/model_700.safetensors
+- left_list=assets/mongo_input.jpg
+- right_list=assets/mongo_input.jpg
+- disp_dir=mongo_output

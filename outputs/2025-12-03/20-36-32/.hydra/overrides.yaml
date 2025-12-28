@@ -1,0 +1,2 @@
+- model=igev_stereo
+- checkpoint=checkpoints/igev_stereo/model_700.safetensors

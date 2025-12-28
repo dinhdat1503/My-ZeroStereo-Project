@@ -1,0 +1,3 @@
+[2025-12-03 21:06:09,136][timm.models.helpers][INFO] - Loading pretrained weights from url (https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/mobilenetv2_100_ra-b33bc2c4.pth)
+[2025-12-03 21:06:09,173][__main__][INFO] - Loading model from IGEVStereo.
+[2025-12-03 21:06:09,557][__main__][INFO] - Loading checkpoint from checkpoints/igev_stereo/model_700.safetensors.
