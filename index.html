@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Khớp ảnh lập thể (ZeroStereo) & Big Data (MapReduce) — Nhóm 8</title>
+  <meta name="description" content="Trang giới thiệu đề tài: Xử lý dữ liệu lớn với kỹ thuật khớp ảnh lập thể (ZeroStereo) và triển khai MapReduce." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/css/style.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="wrap topbar__inner">
+      <a class="brand" href="#top" aria-label="Về đầu trang">
+        <span class="brand__dot"></span>
+        <span class="brand__text">Big Data • Stereo</span>
+      </a>
+
+      <button class="navbtn" id="navbtn" aria-expanded="false" aria-controls="nav">
+        <span></span><span></span><span></span>
+      </button>
+
+      <nav class="nav" id="nav">
+        <a href="#gioithieu">Giới thiệu</a>
+        <a href="#dulieu">Dữ liệu</a>
+        <a href="#phuongphap">Phương pháp</a>
+        <a href="#mapreduce">MapReduce</a>
+        <a href="#thucnghiem">Thực nghiệm</a>
+        <a href="#ketluan">Kết luận</a>
+        <a href="#tailieu">Tài liệu</a>
+        <a href="#github">Github</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="wrap hero__grid">
+        <div class="hero__content">
+          <h1>Xử lý dữ liệu lớn với kỹ thuật <span class="accent">Khớp ảnh lập thể</span></h1>
+          <p class="lead">
+            Pipeline ZeroStereo tạo <b>pseudo stereo</b> từ ảnh đơn (không cần nhãn disparity thật),
+            kết hợp <b>MapReduce</b> để mở rộng xử lý dữ liệu quy mô lớn.
+          </p>
+
+          <div class="chips">
+            <span class="chip">Zero-shot</span>
+            <span class="chip">Pseudo disparity</span>
+            <span class="chip">Forward warping</span>
+            <span class="chip">Diffusion inpainting</span>
+            <span class="chip">MapReduce</span>
+          </div>
+
+          <div class="cta">
+            <a class="btn" href="#gioithieu">Bắt đầu</a>
+            <a class="btn btn--ghost" href="./assets/docs/BaoCao.docx" download>Tải báo cáo (.docx)</a>
+            <a class="btn btn--ghost" href="./assets/docs/BaoCao.pptx" download>Tải slide (.pptx)</a>
+            <a class="btn btn--ghost" href="https://github.com/dinhdat1503/My-ZeroStereo-Project" target="_blank" rel="noopener">Xem mã nguồn (GitHub)</a>
+          </div>
+
+          <div class="meta">
+            <div><b>Nhóm 8_64HTTT2</b></div>
+            <div>GVHD: ThS. Trần Anh Đạt</div>
+            <div>Thành viên: Phạm Tiến Đạt • Nguyễn Hồng Quân • Ngô Đình Đạt • Trần Đức Việt</div>
+          </div>
+        </div>
+
+        <div class="hero__card">
+          <h3>Mục tiêu</h3>
+          <ul class="bullets">
+            <li>Giảm phụ thuộc vào dữ liệu stereo có nhãn disparity chuẩn.</li>
+            <li>Tạo dữ liệu stereo giả từ ảnh 2D để huấn luyện stereo matching.</li>
+            <li>Mở rộng pipeline trên tập lớn bằng MapReduce để giảm thời gian xử lý.</li>
+          </ul>
+  
+        </div>
+      </div>
+    </section>
+
+    <section id="gioithieu" class="section">
+      <div class="wrap">
+        <h2>Giới thiệu</h2>
+        <p>
+          Khớp ảnh lập thể (stereo matching) ước lượng <i>disparity</i> giữa ảnh trái–phải để tái tạo cấu trúc 3D,
+          rất quan trọng trong xe tự hành, robot và AR/VR. Tuy nhiên, đa số phương pháp học sâu yêu cầu dữ liệu stereo
+          có nhãn disparity “chuẩn”, vốn đắt và khó mở rộng.
+        </p>
+        <p>
+          <b>ZeroStereo</b> giải quyết bài toán này theo hướng <b>zero-shot / training-free</b>: dùng mô hình ước lượng độ sâu ảnh đơn
+          để sinh depth map, chuyển sang disparity thích ứng, tạo confidence map không cần huấn luyện, rồi tổng hợp ảnh phải giả bằng
+          forward warping + diffusion inpainting. Từ đó tạo pseudo stereo dataset để huấn luyện stereo matching.
+        </p>
+      </div>
+    </section>
+
+    <section id="dulieu" class="section section--alt">
+      <div class="wrap">
+        <h2>Thu thập & chuẩn bị dữ liệu</h2>
+
+        <div class="grid3">
+          <div class="card">
+            <h3>COCO 2017</h3>
+            <p>
+              Bộ dữ liệu ảnh 2D lớn, đa dạng, thường dùng cho object detection/segmentation/captioning.
+              Trong đề tài, COCO được dùng làm nguồn ảnh đơn để sinh pseudo stereo.
+            </p>
+            <ul class="bullets bullets--compact">
+              <li>Ưu: nhiều bối cảnh, đối tượng phong phú.</li>
+              <li>Nhược: không có stereo/disparity thật.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>KITTI</h3>
+            <p>
+              Bộ dữ liệu xe tự hành (camera + cảm biến), dùng phổ biến để đánh giá stereo/depth trong môi trường thực.
+            </p>
+            <ul class="bullets bullets--compact">
+              <li>Dùng để benchmark và trực quan hóa kết quả.</li>
+              <li>Phản ánh nhiễu/occlusion thực tế.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>Vấn đề & mục tiêu</h3>
+            <ul class="bullets bullets--compact">
+              <li>Ảnh 2D không có nhãn disparity → cần sinh nhãn giả.</li>
+              <li>Tối ưu chất lượng pseudo label bằng confidence & xử lý occlusion.</li>
+              <li>Giảm yêu cầu dữ liệu stereo thật, tăng tính tổng quát.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="callout">
+          <b>Mẹo triển khai:</b> chuẩn bị pipeline chạy theo batch (folder ảnh), lưu ra <code>left/right/disparity/confidence/mask</code>
+          để huấn luyện stereo về sau.
+        </div>
+      </div>
+    </section>
+
+    <section id="phuongphap" class="section">
+      <div class="wrap">
+        <h2>Phương pháp (ZeroStereo)</h2>
+        <p>
+          Pipeline tổng quát: <b>ảnh đơn</b> → depth estimation → chuyển depth→disparity (thích ứng) → sinh confidence map →
+          forward warping tạo pseudo right + mask → diffusion inpainting điền vùng thiếu → thu được bộ pseudo stereo hoàn chỉnh.
+        </p>
+
+        <div class="grid2">
+          <div class="card">
+            <h3>Các bước chính</h3>
+            <ol class="steps">
+              <li><b>Depth Anything V2</b> ước lượng depth map từ ảnh trái.</li>
+              <li><b>Adaptive Disparity Selection</b> chuyển depth → disparity, hạn chế biến dạng và tăng đa dạng.</li>
+              <li><b>Training-Free Confidence Generation</b> tạo confidence map (độ tin cậy) theo kiểm tra nhất quán.</li>
+              <li><b>Forward warping</b> sinh ảnh phải giả; tạo occlusion/inpainting mask.</li>
+              <li><b>Diffusion inpainting</b> điền vùng che khuất để ảnh phải giả tự nhiên hơn.</li>
+            </ol>
+          </div>
+
+          <div class="card">
+            <h3>Loss khi huấn luyện stereo</h3>
+            <p>
+              Giai đoạn “tạo dữ liệu” là training-free. Khi dùng pseudo stereo để huấn luyện mô hình stereo,
+              loss thường kết hợp:
+            </p>
+            <ul class="bullets bullets--compact">
+              <li><b>Disparity loss</b> (L1) giữa dự đoán và pseudo disparity, có trọng số theo confidence.</li>
+              <li><b>Photometric loss</b> (SSIM + L1) chỉ trên vùng non-occlusion để tăng nhất quán quang học.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="carousel" data-carousel>
+          <div class="carousel__track">
+            <figure class="carousel__item">
+              <img src="./assets/img/image13_f288dccf.png" alt="Sơ đồ pipeline ZeroStereo" loading="lazy">
+              <figcaption>Pipeline ZeroStereo tạo pseudo stereo từ ảnh đơn.</figcaption>
+            </figure>
+            <figure class="carousel__item">
+              <img src="./assets/img/image11_fae0f01e.png" alt="Kiến trúc Depth Anything V2" loading="lazy">
+              <figcaption>Mô hình Depth Anything V2 (depth estimation).</figcaption>
+            </figure>
+            <figure class="carousel__item">
+              <img src="./assets/img/image10_cb0d1cce.png" alt="Diffusion inpainting training" loading="lazy">
+              <figcaption>Diffusion inpainting: giai đoạn train (tổng quan).</figcaption>
+            </figure>
+            <figure class="carousel__item">
+              <img src="./assets/img/image15_bbdfa3b7.png" alt="Diffusion inpainting inference" loading="lazy">
+              <figcaption>Diffusion inpainting: giai đoạn inference (tổng quan).</figcaption>
+            </figure>
+            <figure class="carousel__item">
+              <img src="./assets/img/image12_db7c208f.jpg" alt="IGEV / Zero-IGEV minh họa" loading="lazy">
+              <figcaption>Minh họa IGEV (Iterative Geometry Encoding Volume).</figcaption>
+            </figure>
+          </div>
+          <button class="carousel__btn prev" type="button" data-carousel-prev aria-label="Ảnh trước">❮</button>
+          <button class="carousel__btn next" type="button" data-carousel-next aria-label="Ảnh sau">❯</button>
+        </div>
+
+        <h3 class="subhead">Sơ đồ mô hình (nhóm nghiên cứu)</h3>
+        <p class="small">
+          Click vào ảnh để phóng to. Các sơ đồ dưới đây là những mô hình/pipeline được nhóm tổng hợp khi nghiên cứu ZeroStereo, Diffusion Inpainting, IGEV và MapReduce.
+        </p>
+
+        <div class="gallery">
+          <figure class="gallery__item">
+            <img src="./assets/img/models/depth-anything-v2.png" alt="Depth Anything V2" loading="lazy" data-lightbox="Depth Anything V2">
+            <figcaption>Depth Anything V2: ViT Encoder + DPT Decoder (multi-scale fusion) → Depth Map.</figcaption>
+          </figure>
+
+          <figure class="gallery__item">
+            <img src="./assets/img/models/zerostereo-pseudo-label.png" alt="Quá trình tạo nhãn giả trong ZeroStereo" loading="lazy" data-lightbox="Quá trình tạo nhãn giả trong ZeroStereo">
+            <figcaption>Quá trình tạo nhãn giả: ADS → Confidence → Forward Warping → Inpainting Mask/Occlusion Mask.</figcaption>
+          </figure>
+
+          <figure class="gallery__item">
+            <img src="./assets/img/models/diffusion-inpainting-training.png" alt="Diffusion Inpainting - Training" loading="lazy" data-lightbox="Diffusion Inpainting (Training)">
+            <figcaption>Diffusion Inpainting (Training): warped image + mask → latent → Diffusion U-Net.</figcaption>
+          </figure>
+
+          <figure class="gallery__item">
+            <img src="./assets/img/models/diffusion-inpainting-inference.png" alt="Diffusion Inpainting - Inference" loading="lazy" data-lightbox="Diffusion Inpainting (Inference)">
+            <figcaption>Diffusion Inpainting (Inference): denoise T-steps để khôi phục vùng bị che khuất.</figcaption>
+          </figure>
+
+          <figure class="gallery__item">
+            <img src="./assets/img/models/igev-architecture.png" alt="IGEV - Iterative Geometry Encoding Volume" loading="lazy" data-lightbox="IGEV (Iterative Geometry Encoding Volume)">
+            <figcaption>IGEV: Geometry Encoding Volume + ConvGRU lặp nhiều bước → disparity cuối.</figcaption>
+          </figure>
+
+          <figure class="gallery__item">
+            <img src="./assets/img/models/mapreduce-dav2.png" alt="MapReduce (Patch Embedding, DAV2)" loading="lazy" data-lightbox="MapReduce (Patch Embedding, DAV2)">
+            <figcaption>MapReduce: Splitting → Map (Patch Embedding/DAV2) → Shuffle/Sort → Reduce (Reassembly/Decoder/Head).</figcaption>
+          </figure>
+
+          <figure class="gallery__item">
+            <img src="./assets/img/models/mapreduce-simple.png" alt="MapReduce (tổng quan)" loading="lazy" data-lightbox="MapReduce (tổng quan)">
+            <figcaption>MapReduce tổng quan: Input → Splitting → Map → Shuffle/Sort → Reduce → Output.</figcaption>
+          </figure>
+
+          <figure class="gallery__item">
+            <img src="./assets/img/models/mapreduce-parallel.png" alt="MapReduce (song song GPU workers)" loading="lazy" data-lightbox="MapReduce (song song GPU workers)">
+            <figcaption>Ví dụ chạy song song: Split dữ liệu → Workers GPU → Reduce tổng hợp → tính MAE/báo cáo.</figcaption>
+          </figure>
+        </div>
+
+
+        <details class="details">
+          <summary>Xem mô tả chi tiết (tùy chọn)</summary>
+          <div class="details__content">
+            <p>
+              Forward warping dùng disparity để chiếu pixel ảnh trái sang ảnh phải. Vùng bị che khuất tạo ra lỗ hổng (holes),
+              được đánh dấu bằng occlusion/inpainting mask. Diffusion inpainting hoạt động trong không gian latent (VAE),
+              khử nhiễu lặp nhiều bước để tái tạo nội dung hợp lý cho vùng mask, giúp ảnh phải giả ổn định hơn khi huấn luyện.
+            </p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section id="mapreduce" class="section section--alt">
+      <div class="wrap">
+        <h2>Mô hình xử lý Big Data (MapReduce)</h2>
+        <p>
+          Để xử lý hàng chục/nghìn ảnh, pipeline được chia nhỏ theo batch và chạy song song. Ý tưởng chung:
+          <b>Map</b> xử lý từng ảnh (hoặc từng shard) để sinh depth/disparity/right/mask/confidence; <b>Reduce</b> gom kết quả,
+          hậu xử lý và ghi ra dataset chuẩn cho huấn luyện/đánh giá.
+        </p>
+
+        <div class="grid2">
+          <div class="card">
+            <h3>Lợi ích</h3>
+            <ul class="bullets bullets--compact">
+              <li>Tăng tốc nhờ song song hóa theo shard/partition.</li>
+              <li>Cân bằng tải, dễ mở rộng trên cluster (Spark/Hadoop).</li>
+              <li>Chịu lỗi tốt: task hỏng có thể chạy lại.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Đầu ra đề xuất</h3>
+            <ul class="bullets bullets--compact">
+              <li><code>left/</code>, <code>right/</code> (pseudo)</li>
+              <li><code>disp/</code>, <code>conf/</code></li>
+              <li><code>mask_occ/</code>, <code>mask_inpaint/</code></li>
+              <li><code>meta.json</code> (thống kê, tham số, seed)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="thucnghiem" class="section">
+      <div class="wrap">
+        <h2>Thực nghiệm & kết quả</h2>
+        <p>
+          Phần này có thể trình bày theo 2 hướng: (1) bảng so sánh định lượng trên KITTI 2015 (ví dụ D1-all, EPE, MAE…),
+          (2) trực quan hóa depth/disparity (input → ground truth → prediction).
+        </p>
+
+        <div class="carousel" data-carousel>
+          <div class="carousel__track">
+            <figure class="carousel__item">
+              <img src="./assets/img/image12_db7c208f.jpg" alt="Ví dụ trực quan hóa kết quả" loading="lazy">
+              <figcaption>Trực quan hóa: Input / Ground Truth / Dự đoán (minh họa).</figcaption>
+            </figure>
+            <figure class="carousel__item">
+              <img src="./assets/img/image5_10b3f8e6.png" alt="Bảng so sánh phương pháp" loading="lazy">
+              <figcaption>Bảng so sánh các phương pháp (minh họa từ slide).</figcaption>
+            </figure>
+          </div>
+          <button class="carousel__btn prev" type="button" data-carousel-prev aria-label="Ảnh trước">❮</button>
+          <button class="carousel__btn next" type="button" data-carousel-next aria-label="Ảnh sau">❯</button>
+        </div>
+
+        <div class="callout">
+          <b>Gợi ý viết báo cáo:</b> nêu rõ thiết lập (dataset, độ phân giải, tham số disparity, metric), và ghi chú vùng occlusion/inpainting
+          để người đọc hiểu vì sao confidence map quan trọng.
+        </div>
+      </div>
+    </section>
+
+    <section id="ketluan" class="section section--alt">
+      <div class="wrap">
+        <h2>Kết luận</h2>
+
+        <div class="grid2">
+          <div class="card">
+            <h3>Điểm mạnh</h3>
+            <ul class="bullets bullets--compact">
+              <li>Tạo stereo giả từ ảnh đơn, giảm phụ thuộc disparity thật.</li>
+              <li>Confidence-guided giúp giảm tác động vùng pseudo label kém tin cậy.</li>
+              <li>Diffusion inpainting xử lý occlusion tốt hơn so với warp “thô”.</li>
+              <li>MapReduce giúp mở rộng pipeline cho dữ liệu lớn.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>Hướng phát triển</h3>
+            <ul class="bullets bullets--compact">
+              <li>So sánh thêm nhiều mô hình depth estimation và chiến lược chuyển depth→disparity.</li>
+              <li>Tối ưu tốc độ inpainting (giảm bước denoise / dùng model nhẹ hơn).</li>
+              <li>Đánh giá trên nhiều bối cảnh thực tế hơn (đêm, mưa, chuyển động…).</li>
+            </ul>
+          </div>
+        </div>
+
+        <figure class="figure">
+          <img src="./assets/img/image4_016a3508.png" alt="Hướng phát triển (slide)" loading="lazy">
+          <figcaption>Slide: Hướng phát triển.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="tailieu" class="section">
+      <div class="wrap">
+        <h2>Tài liệu tham khảo</h2>
+
+        <div class="card">
+          <ol class="refs">
+            <li>Eigen, D., &amp; Fergus, R. (2014). Predicting Depth from Single Images via Deep Learning (ICCV).</li>
+            <li>Kendall, A., &amp; Cipolla, R. (2017). Multi-Scale Deep Neural Networks for Occlusion-Aware Stereo Matching (CVPR).</li>
+            <li>Zhou, Y., &amp; Brown, M. (2017). A Unified Framework for Stereo Matching with a New Benchmark Dataset (ICCV).</li>
+            <li>Schwing, A. G., &amp; Urtasun, R. (2015). Fully Connected Deep Structured Networks (CVPR).</li>
+            <li>Geiger, A., Lenz, P., &amp; Urtasun, R. (2012). The KITTI Vision Benchmark Suite (CVPR).</li>
+          </ol>
+          <p class="small">
+            (Bạn có thể thay danh sách này bằng “form mẫu” của khoa/trường nếu cần.)
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="github" class="section section--alt">
+      <div class="wrap">
+        <h2>Github & triển khai</h2>
+        <p class="small">
+          Repo dự án (code + tài liệu): <a class="link" href="https://github.com/dinhdat1503/My-ZeroStereo-Project" target="_blank" rel="noopener">My-ZeroStereo-Project</a>
+        </p>
+
+        <div class="grid2">
+          <div class="card">
+            <h3>Chạy local</h3>
+            <ol class="steps">
+              <li>Tải thư mục website về máy.</li>
+              <li>Mở <code>index.html</code> bằng trình duyệt (hoặc dùng VS Code Live Server).</li>
+              <li>Sửa nội dung theo ý bạn.</li>
+            </ol>
+          </div>
+
+          <div class="card">
+            <h3>Đưa lên GitHub Pages</h3>
+            <ol class="steps">
+              <li>Tạo repo mới (Public).</li>
+              <li>Upload toàn bộ file website lên repo (giữ nguyên cấu trúc thư mục).</li>
+              <li>Vào <b>Settings → Pages</b> chọn branch <code>main</code> và thư mục <code>/(root)</code>.</li>
+              <li>Save → đợi GitHub build xong là có link.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="callout">
+          Mã nguồn dự án: <a class="link" href="https://github.com/dinhdat1503/My-ZeroStereo-Project" target="_blank" rel="noopener">https://github.com/dinhdat1503/My-ZeroStereo-Project</a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="wrap footer__inner">
+        <div>© Nhóm 8 — Big Data • Stereo Matching</div>
+        <div class="small">Thiết kế one-page + anchor giống mẫu tham khảo.</div>
+      </div>
+    </footer>
+  </main>
+
+  <!-- Lightbox (phóng to ảnh mô hình) -->
+  <div class="lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-label="Phóng to ảnh">
+    <div class="lightbox__inner">
+      <img class="lightbox__img" src="" alt="" />
+      <div class="lightbox__bar">
+        <div class="lightbox__title" data-lightbox-title></div>
+        <button class="lightbox__close" type="button" data-lightbox-close>Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./assets/js/main.js"></script>
+</body>
+</html>
